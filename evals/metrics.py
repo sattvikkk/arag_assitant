@@ -4,9 +4,9 @@ import os
 import logfire
 import pandas as pd
 from openai import AsyncOpenAI
-from ragas.embeddings import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from ragas.llms import llm_factory
-from ragas.metrics.collections import (
+from ragas.metrics import (
     AnswerCorrectness,
     AnswerRelevancy,
     ContextPrecision,

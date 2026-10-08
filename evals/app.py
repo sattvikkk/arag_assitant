@@ -1,3 +1,5 @@
+import sys, pathlib
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 import asyncio
 import os
 import sys
@@ -15,19 +17,19 @@ from evals.pipeline import load_golden_dataset, run_pipeline
 load_dotenv()
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 nest_asyncio.apply()
-logfire.configure(token=os.getenv("LOGFIRE_TOKEN"))
-# ─────────────────────────────────────────────────────────────────────────────
+logfire.configure(token=os.getenv("LOGFIRE_TOKEN"),service_name="evals")
+#
 # Page config
-# ─────────────────────────────────────────────────────────────────────────────
+#
 st.set_page_config(
-    page_title="Enterprise RAG — Eval Suite",
-    page_icon="🧪",
+    page_title="Enterprise RAG - Eval Suite",
+    page_icon="",
     layout="wide",
 )
 
-# ─────────────────────────────────────────────────────────────────────────────
+#
 # Helpers
-# ─────────────────────────────────────────────────────────────────────────────
+#
 SCORE_COLORS = {
     "green":  "#d4edda",
     "yellow": "#fff3cd",
@@ -37,18 +39,18 @@ SCORE_COLORS = {
 
 def _badge(score: float) -> str:
     if score >= 0.75:
-        return "🟢"
+        return ""
     elif score >= 0.5:
-        return "🟡"
-    return "🔴"
+        return ""
+    return ""
 
 
 def _grade(score: float) -> str:
     if score >= 0.75:
-        return "✅ Good"
+        return " Good"
     elif score >= 0.5:
-        return "⚠️ Fair"
-    return "❌ Poor"
+        return " Fair"
+    return " Poor"
 
 
 def _color_score(val):
@@ -63,7 +65,7 @@ def _color_score(val):
 
 def _render_metric_table(df: pd.DataFrame, metric_col: str, title: str):
     avg = df[metric_col].mean()
-    st.markdown(f"**{title}** — AVG: {_badge(avg)} `{avg:.2f}` {_grade(avg)}")
+    st.markdown(f"**{title}** - AVG: {_badge(avg)} `{avg:.2f}` {_grade(avg)}")
     styled = df.style.applymap(_color_score, subset=[metric_col]).format({metric_col: "{:.3f}"})
     st.dataframe(styled, use_container_width=True, hide_index=True)
 
@@ -73,9 +75,9 @@ def _run_async(coro):
     return loop.run_until_complete(coro)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+#
 # Session state init
-# ─────────────────────────────────────────────────────────────────────────────
+#
 if "golden" not in st.session_state:
     st.session_state.golden = load_golden_dataset()
 if "pipeline_done" not in st.session_state:
@@ -91,26 +93,26 @@ if "pipeline_rows" not in st.session_state:
 
 golden = st.session_state.golden
 
-# ─────────────────────────────────────────────────────────────────────────────
+#
 # Header
-# ─────────────────────────────────────────────────────────────────────────────
-st.title("🧪 Enterprise RAG — Evaluation Suite")
+#
+st.title(" Enterprise RAG - Evaluation Suite")
 st.caption(
-    "Step 1: Review ground truth → Step 2: Run live pipeline → Step 3: Score with RAGAS"
+    "Step 1: Review ground truth -> Step 2: Run live pipeline -> Step 3: Score with RAGAS"
 )
 st.divider()
 
-# ─────────────────────────────────────────────────────────────────────────────
+#
 # Tabs
-# ─────────────────────────────────────────────────────────────────────────────
+#
 tab1, tab2, tab3 = st.tabs(
-    ["📋 Step 1 — Ground Truth", "🚀 Step 2 — Live Pipeline", "📊 Step 3 — Eval Metrics"]
+    [" Step 1 - Ground Truth", " Step 2 - Live Pipeline", " Step 3 - Eval Metrics"]
 )
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# TAB 1 — Ground Truth
-# ═════════════════════════════════════════════════════════════════════════════
+#
+# TAB 1 - Ground Truth
+#
 with tab1:
     st.subheader("Ground Truth Dataset")
     st.markdown(
@@ -125,11 +127,11 @@ with tab1:
             "Domain": s["domain"].replace("_", " ").title(),
             "Question": s["question"],
             "Reference Answer": s["reference"][:120] + "..." if len(s["reference"]) > 120 else s["reference"],
-            "Expected Tool": s["expected_tools"][0] if s["expected_tools"] else "—",
+            "Expected Tool": s["expected_tools"][0] if s["expected_tools"] else "-",
         })
     df_golden = pd.DataFrame(rag_rows)
     st.dataframe(df_golden, use_container_width=True, hide_index=True)
-    st.caption(f"✅ {len(rag_rows)} golden RAG samples from 5 enterprise docs")
+    st.caption(f" {len(rag_rows)} golden RAG samples from 5 enterprise docs")
 
     st.divider()
 
@@ -141,7 +143,7 @@ with tab1:
 
     g_rows = []
     for g in golden["guardrails_samples"]:
-        expected_label = "🛡️ Block" if g["expected_blocked"] else "✅ Pass"
+        expected_label = " Block" if g["expected_blocked"] else " Pass"
         g_rows.append({
             "ID": g["id"],
             "Input": g["input"],
@@ -156,30 +158,30 @@ with tab1:
         st.json(golden)
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# TAB 2 — Live Pipeline
-# ═════════════════════════════════════════════════════════════════════════════
+#
+# TAB 2 - Live Pipeline
+#
 with tab2:
-    st.subheader("Live Pipeline — Collect Real Responses")
+    st.subheader("Live Pipeline - Collect Real Responses")
     st.markdown(
         "Sends each golden question to your **running FastAPI app** (`localhost:8000/query`). "
         "Captures the actual response, retrieved contexts, and tool called. "
         "Responses are truncated to 300 chars to save tokens for the RAGAS judging step."
     )
     st.info(
-        "⚠️ Make sure your FastAPI backend is running first: `uvicorn app.main:app --reload --port 8000`",
-        icon="⚠️",
+        " Make sure your FastAPI backend is running first: `uvicorn app.main:app --reload --port 8000`",
+        icon="",
     )
 
     col_p1, col_p2, col_p3 = st.columns([1, 1, 2])
     run_pipeline_btn = col_p1.button(
-        "▶️ Run Live Pipeline",
+        " Run Live Pipeline",
         type="primary",
         width="stretch",
         disabled=st.session_state.pipeline_done,
     )
     reset_btn = col_p2.button(
-        "🔄 Reset & Re-run",
+        " Reset & Re-run",
         width="stretch",
         disabled=not st.session_state.pipeline_done,
     )
@@ -208,8 +210,8 @@ with tab2:
                 st.session_state.pipeline_rows.append({
                     "#": i + 1,
                     "Question": short_q,
-                    "Live Response (truncated)": short_r if short_r else "⚠️ No response",
-                    "Status": "✅" if short_r else "❌",
+                    "Live Response (truncated)": short_r if short_r else " No response",
+                    "Status": "" if short_r else "",
                 })
                 live_table_slot.dataframe(
                     pd.DataFrame(st.session_state.pipeline_rows),
@@ -218,17 +220,17 @@ with tab2:
                 )
                 progress_bar.progress(
                     int(((i + 1) / total) * 100),
-                    text=f"[{i+1}/{total}] ✅ Done",
+                    text=f"[{i+1}/{total}]  Done",
                 )
 
-        with logfire.span("🚀 Streamlit — Run Pipeline Button"):
+        with logfire.span(" Streamlit - Run Pipeline Button"):
             enriched = run_pipeline(golden, progress_callback=pipeline_cb)
             st.session_state.enriched_dataset = enriched
 
-        progress_bar.progress(100, text="✅ All responses collected!")
-        status_slot.success(f"💾 {len(enriched['rag_samples'])} responses stored in session.")
+        progress_bar.progress(100, text=" All responses collected!")
+        status_slot.success(f" {len(enriched['rag_samples'])} responses stored in session.")
 
-        # ── Guardrails tests ──────────────────────────────────────────────────
+        #  Guardrails tests 
         st.divider()
         st.subheader("Guardrails Tests")
         g_progress = st.progress(0, text="Running guardrails tests...")
@@ -240,24 +242,24 @@ with tab2:
                 text=f"[{i+1}/{total}] Testing: {input_text[:60]}...",
             )
 
-        with logfire.span("🛡️ Streamlit — Guardrails Tests"):
+        with logfire.span(" Streamlit - Guardrails Tests"):
             g_results = run_guardrails_eval(enriched["guardrails_samples"], progress_callback=g_cb)
             g_metrics = compute_guardrails_metrics(g_results)
             st.session_state.guardrails_results = g_results
             st.session_state.pipeline_done = True
 
-        g_progress.progress(100, text="✅ Guardrails tests complete!")
+        g_progress.progress(100, text=" Guardrails tests complete!")
 
         g_rows_live = []
         for r in g_results:
             result_label = {
-                "TP": "🛡️ Blocked ✅", "TN": "✅ Passed ✅",
-                "FP": "🛡️ Blocked ❌ (False Positive)", "FN": "✅ Passed ❌ (Missed)",
+                "TP": " Blocked ", "TN": " Passed ",
+                "FP": " Blocked  (False Positive)", "FN": " Passed  (Missed)",
             }.get(r["result"], r["result"])
             g_rows_live.append({
                 "ID": r["id"],
                 "Input": r["input"][:70],
-                "Expected": "🛡️ Block" if r["expected_blocked"] else "✅ Pass",
+                "Expected": " Block" if r["expected_blocked"] else " Pass",
                 "Actual": "Blocked" if r["actual_blocked"] else "Passed",
                 "Result": result_label,
             })
@@ -270,7 +272,7 @@ with tab2:
         mc4.metric("Accuracy", f"{g_metrics['accuracy']:.2f}")
 
     elif st.session_state.pipeline_done:
-        st.success("✅ Pipeline already run. See results below.")
+        st.success(" Pipeline already run. See results below.")
 
         resp_rows = []
         for s in st.session_state.enriched_dataset["rag_samples"]:
@@ -279,7 +281,7 @@ with tab2:
                 "Domain": s["domain"].replace("_", " ").title(),
                 "Question": s["question"][:60],
                 "Live Response": s["actual_response"][:100] + "..." if len(s.get("actual_response","")) > 100 else s.get("actual_response",""),
-                "Tool Called": s["actual_tools_called"][0] if s.get("actual_tools_called") else "—",
+                "Tool Called": s["actual_tools_called"][0] if s.get("actual_tools_called") else "-",
                 "Contexts Retrieved": len(s.get("actual_contexts", [])),
             })
         st.dataframe(pd.DataFrame(resp_rows), use_container_width=True, hide_index=True)
@@ -290,8 +292,8 @@ with tab2:
             g_rows_prev = []
             for r in st.session_state.guardrails_results:
                 result_label = {
-                    "TP": "🛡️ Blocked ✅", "TN": "✅ Passed ✅",
-                    "FP": "Blocked ❌ FP", "FN": "Passed ❌ FN",
+                    "TP": " Blocked ", "TN": " Passed ",
+                    "FP": "Blocked  FP", "FN": "Passed  FN",
                 }.get(r["result"], r["result"])
                 g_rows_prev.append({
                     "ID": r["id"],
@@ -307,29 +309,29 @@ with tab2:
             mc4.metric("Accuracy", f"{gm['accuracy']:.2f}")
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# TAB 3 — Eval Metrics
-# ═════════════════════════════════════════════════════════════════════════════
+#
+# TAB 3 - Eval Metrics
+#
 with tab3:
-    st.subheader("Eval Metrics — RAGAS + Tool Correctness")
+    st.subheader("Eval Metrics - RAGAS + Tool Correctness")
 
     if not st.session_state.pipeline_done:
-        st.warning("⚠️ Complete Step 2 (Live Pipeline) first to collect responses.")
+        st.warning(" Complete Step 2 (Live Pipeline) first to collect responses.")
     else:
         st.markdown(
             "Runs all **6 metric experiments** on the stored responses. "
-            "LLM-based metrics use `JUDGE_GROQ` key — samples are scored one at a time "
+            "LLM-based metrics use `JUDGE_GROQ` key - samples are scored one at a time "
             "with 40s cooldowns between samples to stay within Groq's **6,000 TPM** on-demand limit. "
             "Total runtime: ~50 min."
         )
         st.info(
             "Token key used: `JUDGE_GROQ` (separate from production key). "
             "Each sample is processed individually (~2,800 tokens/burst) to avoid the 6,000 TPM ceiling.",
-            icon="ℹ️",
+            icon="",
         )
 
         run_metrics_btn = st.button(
-            "▶️ Run Eval Metrics",
+            " Run Eval Metrics",
             type="primary",
             disabled=not st.session_state.pipeline_done,
         )
@@ -339,12 +341,12 @@ with tab3:
             results_slots = {}
 
             metric_display_names = {
-                "faithfulness":      "Exp 1 — Faithfulness",
-                "answer_relevancy":  "Exp 2 — Answer Relevancy",
-                "context_precision": "Exp 3 — Context Precision",
-                "context_recall":    "Exp 4 — Context Recall",
-                "answer_correctness":"Exp 5 — Answer Correctness",
-                "tool_correctness":  "Exp 6 — Tool Correctness",
+                "faithfulness":      "Exp 1 - Faithfulness",
+                "answer_relevancy":  "Exp 2 - Answer Relevancy",
+                "context_precision": "Exp 3 - Context Precision",
+                "context_recall":    "Exp 4 - Context Recall",
+                "answer_correctness":"Exp 5 - Answer Correctness",
+                "tool_correctness":  "Exp 6 - Tool Correctness",
             }
             for key, title in metric_display_names.items():
                 results_slots[key] = st.empty()
@@ -352,13 +354,13 @@ with tab3:
             def status_cb(msg: str):
                 status_slot.info(msg)
 
-            with logfire.span("📊 Streamlit — Run Metrics Button"):
+            with logfire.span(" Streamlit - Run Metrics Button"):
                 metric_results = _run_async(
                     run_all_metrics(st.session_state.enriched_dataset, status_cb=status_cb)
                 )
                 st.session_state.metric_results = metric_results
 
-            status_slot.success("✅ All 6 experiments complete!")
+            status_slot.success(" All 6 experiments complete!")
 
             for key, title in metric_display_names.items():
                 if key in metric_results:
@@ -366,20 +368,20 @@ with tab3:
                         _render_metric_table(metric_results[key], key, title)
 
         elif st.session_state.metric_results:
-            st.success("✅ Metrics already computed. Showing results below.")
+            st.success(" Metrics already computed. Showing results below.")
             metric_display_names = {
-                "faithfulness":      "Exp 1 — Faithfulness",
-                "answer_relevancy":  "Exp 2 — Answer Relevancy",
-                "context_precision": "Exp 3 — Context Precision",
-                "context_recall":    "Exp 4 — Context Recall",
-                "answer_correctness":"Exp 5 — Answer Correctness",
-                "tool_correctness":  "Exp 6 — Tool Correctness",
+                "faithfulness":      "Exp 1 - Faithfulness",
+                "answer_relevancy":  "Exp 2 - Answer Relevancy",
+                "context_precision": "Exp 3 - Context Precision",
+                "context_recall":    "Exp 4 - Context Recall",
+                "answer_correctness":"Exp 5 - Answer Correctness",
+                "tool_correctness":  "Exp 6 - Tool Correctness",
             }
             for key, title in metric_display_names.items():
                 if key in st.session_state.metric_results:
                     _render_metric_table(st.session_state.metric_results[key], key, title)
 
-        # ── Final Summary ─────────────────────────────────────────────────────
+        #  Final Summary 
         if st.session_state.metric_results:
             st.divider()
             st.subheader("Final Summary")
@@ -406,13 +408,13 @@ with tab3:
             if st.session_state.guardrails_results:
                 gm = compute_guardrails_metrics(st.session_state.guardrails_results)
                 st.metric(
-                    label="🛡️ Guardrails Accuracy",
+                    label=" Guardrails Accuracy",
                     value=f"{gm['correct']}/{gm['total']}",
                     delta=f"Precision {gm['precision']:.2f} | Recall {gm['recall']:.2f}",
                 )
 
             summary_df = pd.DataFrame([
-                {"Metric": name, "Score": f"{score:.3f}" if pd.notna(score) else "—", "Grade": _grade(score) if pd.notna(score) else "—"}
+                {"Metric": name, "Score": f"{score:.3f}" if pd.notna(score) else "-", "Grade": _grade(score) if pd.notna(score) else "-"}
                 for name, score in summary
             ])
             st.dataframe(summary_df, use_container_width=True, hide_index=True)

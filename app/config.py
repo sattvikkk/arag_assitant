@@ -16,7 +16,7 @@ class Settings:
     # --- OPENAI-COMPATIBLE API (LLM + EMBEDDINGS) ---
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
     OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL")
-    LLM_MODEL = os.getenv("LLM_MODEL", "nvidia/nemotron-3-ultra-550b-a55b")
+    LLM_MODEL = os.getenv("LLM_MODEL", "openai/gpt-oss-120b")
 
     # --- VECTOR DB (QDRANT) ---
     QDRANT_URL = os.getenv("QDRANT_CLUSTER_ENDPOINT")

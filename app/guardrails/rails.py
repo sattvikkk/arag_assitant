@@ -20,7 +20,7 @@ def initialize_rails() -> None:
     guard_llm = ChatOpenAI(
         api_key=settings.OPENAI_API_KEY,
         base_url=settings.OPENAI_BASE_URL,
-        model="nvidia/nemotron-3-nano-omni-30b-a3b",
+        model="openai/gpt-oss-120b",
         temperature=0,
     )
 
