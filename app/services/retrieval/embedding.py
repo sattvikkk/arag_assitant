@@ -1,111 +1,92 @@
 import os
-import time
 
 import logfire
 from dotenv import load_dotenv
-from langchain_openai import OpenAIEmbeddings
+from sentence_transformers import SentenceTransformer
+
 
 load_dotenv()
 
 BATCH_SIZE = 50
-EMBEDDING_MODEL = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-large")
+EMBEDDING_MODEL = os.getenv(
+    "EMBEDDING_MODEL",
+    "BAAI/bge-small-en-v1.5",
+)
 
 _active_model = None
 _embedding_dim = None
 
 
-def _build_embedding_model() -> OpenAIEmbeddings:
-    """
-    Build the single embedding model used by ingestion and retrieval.
-
-    Required env:
-      OPENAI_API_KEY
-
-    Optional env:
-      OPENAI_BASE_URL
-      OPENAI_EMBEDDING_MODEL
-    """
-    api_key = os.getenv("OPENAI_API_KEY")
-    base_url = os.getenv("OPENAI_BASE_URL") or None
-
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY is missing. Add it to your .env file.")
-
-    return OpenAIEmbeddings(
-        model=EMBEDDING_MODEL,
-        api_key=api_key,
-        base_url=base_url,
-    )
-
-
 def _init() -> None:
-    """Initialize the embedding model once and probe its vector dimension."""
+    """Initialize the local embedding model once."""
     global _active_model, _embedding_dim
 
     if _active_model is not None:
         return
 
-    with logfire.span("Initialize embedding model", model=EMBEDDING_MODEL):
-        model = _build_embedding_model()
-        probe_vector = model.embed_query("probe")
+    with logfire.span(
+        "Initialize embedding model",
+        model=EMBEDDING_MODEL,
+    ):
+        _active_model = SentenceTransformer(EMBEDDING_MODEL)
 
-        _active_model = model
-        _embedding_dim = len(probe_vector)
+        _embedding_dim = (
+            _active_model.get_sentence_embedding_dimension()
+        )
 
         logfire.info(
-            f"Embedding model ready: {EMBEDDING_MODEL} ({_embedding_dim}-dim)."
+            f"Embedding model ready: "
+            f"{EMBEDDING_MODEL} ({_embedding_dim}-dim)."
         )
 
 
 def get_embedding_dim() -> int:
-    """Return the active embedding dimension for Qdrant collection creation."""
+    """Return embedding dimension for Qdrant."""
     _init()
     return _embedding_dim
 
 
 def embed_query(query: str) -> list[float]:
-    """Embed one user/search query."""
+    """Embed a single query."""
     _init()
-    return _active_model.embed_query(query)
 
+    embedding = _active_model.encode(
+        query,
+        normalize_embeddings=True,
+    )
 
-def _embed_batch(batch: list[str]) -> list[list[float]]:
-    """Embed one batch with simple retry for rate limits/transient API errors."""
-    for attempt in range(4):
-        try:
-            return _active_model.embed_documents(batch)
-        except Exception as e:
-            err = str(e).lower()
-            is_retryable = any(
-                marker in err
-                for marker in ("429", "rate", "quota", "timeout", "temporarily", "503")
-            )
-
-            if is_retryable and attempt < 3:
-                wait = 2 ** attempt
-                logfire.warning(
-                    f"Embedding API retry in {wait}s "
-                    f"(attempt {attempt + 1}/4): {e}"
-                )
-                time.sleep(wait)
-                continue
-
-            logfire.error(f"Embedding failed: {e}")
-            raise
-
-    raise RuntimeError("Embedding API failed after 4 attempts.")
+    return embedding.tolist()
 
 
 def embed_texts(texts: list[str]) -> list[list[float]]:
     """Embed document chunks in batches."""
     _init()
 
-    clean_texts = [text for text in texts if text and text.strip()]
+    clean_texts = [
+        text for text in texts
+        if text and text.strip()
+    ]
+
     all_embeddings = []
 
     for i in range(0, len(clean_texts), BATCH_SIZE):
-        batch = clean_texts[i : i + BATCH_SIZE]
-        with logfire.span("Embed batch", model=EMBEDDING_MODEL, start=i, size=len(batch)):
-            all_embeddings.extend(_embed_batch(batch))
+        batch = clean_texts[i:i + BATCH_SIZE]
+
+        with logfire.span(
+            "Embed batch",
+            model=EMBEDDING_MODEL,
+            start=i,
+            size=len(batch),
+        ):
+            embeddings = _active_model.encode(
+                batch,
+                batch_size=BATCH_SIZE,
+                normalize_embeddings=True,
+                show_progress_bar=False,
+            )
+
+            all_embeddings.extend(
+                embeddings.tolist()
+            )
 
     return all_embeddings
