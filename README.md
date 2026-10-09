@@ -4,7 +4,6 @@ A production-style Agentic RAG system for enterprise document intelligence. It c
 
 This project is designed as an interview-ready backend + AI systems showcase: it demonstrates how a real RAG application can separate UI, API, retrieval, guardrails, observability, ingestion, and evaluation into clean modules.
 
-![Enterprise Agentic RAG Architecture](DOCS/assets/enterprise-agentic-rag-architecture.png)
 
 ---
 
